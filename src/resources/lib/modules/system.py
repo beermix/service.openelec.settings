@@ -139,10 +139,10 @@ class system:
                     'settings': {
                         'AutoUpdate': {
                             'name': 32014,
-                            'value': 'manual',
+                            'value': 'auto',
                             'action': 'set_auto_update',
                             'type': 'multivalue',
-                            'values': ['manual', 'auto'],
+                            'values': ['auto', 'manual'],
                             'InfoText': 714,
                             'order': 1,
                             },
@@ -154,13 +154,79 @@ class system:
                             'InfoText': 715,
                             'order': 2,
                             },
-                        'CheckUpdate': {
-                            'name': 32362,
-                            'value': '',
-                            'action': 'manual_check_update',
-                            'type': 'button',
-                            'InfoText': 716,
+                        'ShowCustomChannels': {
+                            'name': 32016,
+                            'value': '0',
+                            'action': 'set_custom_channel',
+                            'type': 'bool',
+                            'parent': {
+                                'entry': 'AutoUpdate',
+                                'value': ['manual'],
+                                },
+                            'InfoText': 761,
                             'order': 3,
+                            },
+                        'CustomChannel1': {
+                            'name': 32017,
+                            'value': '',
+                            'action': 'set_custom_channel',
+                            'type': 'text',
+                            'parent': {
+                                'entry': 'ShowCustomChannels',
+                                'value': ['1'],
+                                },
+                            'InfoText': 762,
+                            'order': 4,
+                            },
+                        'CustomChannel2': {
+                            'name': 32018,
+                            'value': '',
+                            'action': 'set_custom_channel',
+                            'type': 'text',
+                            'parent': {
+                                'entry': 'ShowCustomChannels',
+                                'value': ['1'],
+                                },
+                            'InfoText': 762,
+                            'order': 5,
+                            },
+                        'CustomChannel3': {
+                            'name': 32019,
+                            'value': '',
+                            'action': 'set_custom_channel',
+                            'type': 'text',
+                            'parent': {
+                                'entry': 'ShowCustomChannels',
+                                'value': ['1'],
+                                },
+                            'InfoText': 762,
+                            'order': 6,
+                            },
+                        'Channel': {
+                            'name': 32015,
+                            'value': '',
+                            'action': 'set_channel',
+                            'type': 'multivalue',
+                            'parent': {
+                                'entry': 'AutoUpdate',
+                                'value': ['manual'],
+                                },
+                            'values': [],
+                            'InfoText': 760,
+                            'order': 7,
+                            },
+                        'Build': {
+                            'name': 32020,
+                            'value': '',
+                            'action': 'do_manual_update',
+                            'type': 'multivalue',
+                            'parent': {
+                                'entry': 'AutoUpdate',
+                                'value': ['manual'],
+                                },
+                            'values': [],
+                            'InfoText': 770,
+                            'order': 8,
                             },
                         },
                     },
@@ -205,6 +271,20 @@ class system:
                             'type': 'button',
                             'InfoText': 725,
                             'order': 2,
+                            },
+                        },
+                    },
+                'debug': {
+                    'order': 9,
+                    'name': 32376,
+                    'settings': {
+                        'paste': {
+                            'name': 32377,
+                            'value': '0',
+                            'action': 'do_pastebin',
+                            'type': 'button',
+                            'InfoText': 718,
+                            'order': 1,
                             },
                         },
                     },
@@ -317,6 +397,29 @@ class system:
             if os.path.isfile('%s/SYSTEM' % self.LOCAL_UPDATE_DIR):
                 self.update_in_progress = True
 
+            # Manual Update
+
+            value = self.oe.read_setting('system', 'Channel')
+            if not value is None:
+                self.struct['update']['settings']['Channel']['value'] = value
+            value = self.oe.read_setting('system', 'ShowCustomChannels')
+            if not value is None:
+                self.struct['update']['settings']['ShowCustomChannels']['value'] = value
+
+            value = self.oe.read_setting('system', 'CustomChannel1')
+            if not value is None:
+                self.struct['update']['settings']['CustomChannel1']['value'] = value
+            value = self.oe.read_setting('system', 'CustomChannel2')
+            if not value is None:
+                self.struct['update']['settings']['CustomChannel2']['value'] = value
+            value = self.oe.read_setting('system', 'CustomChannel3')
+            if not value is None:
+                self.struct['update']['settings']['CustomChannel3']['value'] = value
+
+            self.update_json = self.build_json()
+
+            self.struct['update']['settings']['Channel']['values'] = self.get_channels()
+            self.struct['update']['settings']['Build']['values'] = self.get_available_builds()
             # AutoUpdate = manual by environment var.
 
             if os.path.exists('/dev/.update_disabled'):
@@ -517,6 +620,139 @@ class system:
         except Exception, e:
             self.oe.dbg_log('system::get_keyboard_layouts', 'ERROR: (' + repr(e) + ')')
 
+    def set_channel(self, listItem=None):
+        try:
+            self.oe.dbg_log('system::set_channel', 'enter_function', 0)
+            if not listItem == None:
+                self.set_value(listItem)
+            self.struct['update']['settings']['Build']['values'] = self.get_available_builds()
+            self.oe.dbg_log('system::set_channel', 'exit_function', 0)
+        except Exception, e:
+            self.oe.dbg_log('system::set_channel', 'ERROR: (' + repr(e) + ')')
+
+    def set_custom_channel(self, listItem=None):
+        try:
+            self.oe.dbg_log('system::set_custom_channel', 'enter_function', 0)
+            if not listItem == None:
+                self.set_value(listItem)
+            if listItem.getProperty('entry') != 'ShowCustomChannels':
+                if self.get_json(listItem.getProperty('value')) is None:
+                    xbmcDialog = xbmcgui.Dialog()
+                    xbmcDialog.ok('LibreELEC Update', self.oe._(32191).encode('utf-8'))
+                    xbmcDialog = None
+                    del xbmcDialog
+            self.update_json = self.build_json()
+            self.struct['update']['settings']['Channel']['values'] = self.get_channels()
+            if not self.struct['update']['settings']['Channel']['values'] is None:
+                if not self.struct['update']['settings']['Channel']['value'] in self.struct['update']['settings']['Channel']['values']:
+                    self.struct['update']['settings']['Channel']['value'] = None
+            self.struct['update']['settings']['Build']['values'] = self.get_available_builds()
+            self.oe.dbg_log('system::set_custom_channel', 'exit_function', 0)
+        except Exception, e:
+            self.oe.dbg_log('system::set_custom_channel', 'ERROR: (' + repr(e) + ')')
+
+    def get_channels(self):
+        try:
+            self.oe.dbg_log('system::get_channels', 'enter_function', 0)
+            channels = []
+            self.oe.dbg_log('system::get_channels', unicode(self.update_json), 0)
+            if not self.update_json is None:
+                for channel in self.update_json:
+                    channels.append(channel)
+            self.oe.dbg_log('system::get_channels', 'exit_function', 0)
+            return channels
+        except Exception, e:
+            self.oe.dbg_log('system::get_channels', 'ERROR: (' + repr(e) + ')')
+
+    def do_manual_update(self, listItem=None):
+        try:
+            self.oe.dbg_log('system::do_manual_update', 'enter_function', 0)
+            channel = self.struct['update']['settings']['Channel']['value']
+            regex = re.compile(self.update_json[channel]['prettyname_regex'])
+            longname = '-'.join([self.oe.DISTRIBUTION, self.oe.ARCHITECTURE, self.oe.VERSION])
+            if regex.search(longname):
+                version = regex.findall(longname)[0]
+            else:
+                version = self.oe.VERSION
+            if not listItem == None:
+                self.struct['update']['settings']['Build']['value'] = listItem.getProperty('value')
+            if self.struct['update']['settings']['Build']['value'] != '':
+                self.update_file = self.update_json[self.struct['update']['settings']['Channel']['value']]['url'] + self.get_available_builds(self.struct['update']['settings']['Build']['value'])
+                xbmcDialog = xbmcgui.Dialog()
+                answer = xbmcDialog.yesno('LibreELEC Update', self.oe._(32188).encode('utf-8') + ':  ' + version.encode('utf-8'),
+                                      self.oe._(32187).encode('utf-8') + ':  ' + self.struct['update']['settings']['Build']['value'].encode('utf-8'),
+                                      self.oe._(32180).encode('utf-8'))
+                xbmcDialog = None
+                del xbmcDialog
+                if answer:
+                    self.update_in_progress = True
+                    self.do_autoupdate()
+            self.struct['update']['settings']['Build']['value'] = ''
+            self.oe.dbg_log('system::do_manual_update', 'exit_function', 0)
+        except Exception, e:
+            self.oe.dbg_log('system::do_manual_update', 'ERROR: (' + repr(e) + ')')
+
+    def get_json(self, url=None):
+        try:
+            self.oe.dbg_log('system::get_json', 'enter_function', 0)
+            if url is None:
+                url = self.UPDATE_DOWNLOAD_URL % ('releases', 'releases.json')
+            if url.split('/')[-1] != 'releases.json':
+                url = url + '/releases.json'
+            data = self.oe.load_url(url)
+            if not data is None:
+                update_json = json.loads(data)
+            else:
+                update_json = None
+            self.oe.dbg_log('system::get_json', 'exit_function', 0)
+            return update_json
+        except Exception, e:
+            self.oe.dbg_log('system::get_json', 'ERROR: (' + repr(e) + ')')
+
+    def build_json(self):
+        try:
+            self.oe.dbg_log('system::build_json', 'enter_function', 0)
+            update_json = self.get_json()
+            if self.struct['update']['settings']['ShowCustomChannels']['value'] == '1':
+                custom_urls = []
+                for i in 1,2,3:
+                    custom_urls.append(self.struct['update']['settings']['CustomChannel' + str(i)]['value'])
+                for custom_url in custom_urls:
+                    if custom_url != '':
+                        custom_update_json = self.get_json(custom_url)
+                        if not custom_update_json is None:
+                            for channel in custom_update_json:
+                                update_json[channel] = custom_update_json[channel]
+            self.oe.dbg_log('system::build_json', 'exit_function', 0)
+            return update_json
+        except Exception, e:
+            self.oe.dbg_log('system::build_json', 'ERROR: (' + repr(e) + ')')
+
+    def get_available_builds(self, shortname=None):
+        try:
+            self.oe.dbg_log('system::get_available_builds', 'enter_function', 0)
+            channel = self.struct['update']['settings']['Channel']['value']
+            update_files = []
+            build = None
+            if not self.update_json is None:
+                if channel != '':
+                    if channel in self.update_json:
+                        regex = re.compile(self.update_json[channel]['prettyname_regex'])
+                        if self.oe.ARCHITECTURE in self.update_json[channel]['project']:
+                            for i in sorted(self.update_json[channel]['project'][self.oe.ARCHITECTURE]['releases'], key=int, reverse=True):
+                                if shortname is None:
+                                    update_files.append(regex.findall(self.update_json[channel]['project'][self.oe.ARCHITECTURE]['releases'][i]['file']['name'])[0].strip('.tar'))
+                                else:
+                                    build = self.update_json[channel]['project'][self.oe.ARCHITECTURE]['releases'][i]['file']['name']
+                                    if shortname in build:
+                                        break
+            self.oe.dbg_log('system::get_available_builds', 'exit_function', 0)
+            if build is None:
+                return update_files
+            else:
+                return build
+        except Exception, e:
+            self.oe.dbg_log('system::get_available_builds', 'ERROR: (' + repr(e) + ')')
     def check_updates_v2(self, force=False):
         try:
             self.oe.dbg_log('system::check_updates_v2', 'enter_function', 0)
@@ -537,23 +773,10 @@ class system:
             if update_json != '':
                 update_json = json.loads(update_json)
                 self.last_update_check = time.time()
-                silent = True
-                answer = 0
                 if 'update' in update_json['data'] and 'folder' in update_json['data']:
                     self.update_file = self.UPDATE_DOWNLOAD_URL % (update_json['data']['folder'], update_json['data']['update'])
                     if self.struct['update']['settings']['UpdateNotify']['value'] == '1':
                         self.oe.notify(self.oe._(32363).encode('utf-8'), self.oe._(32364).encode('utf-8'))
-                    if self.struct['update']['settings']['AutoUpdate']['value'] == 'manual' and force == True:
-                        silent = False
-                        xbmcDialog = xbmcgui.Dialog()
-                        answer = xbmcDialog.yesno('OpenELEC Update', self.oe._(32188).encode('utf-8') + ':  ' + self.oe.VERSION,
-                                                  self.oe._(32187).encode('utf-8') + ':  ' + update_json['data']['update'].split('-'
-                                                  )[-1].replace('.tar', '').encode('utf-8'), self.oe._(32180).encode('utf-8'))
-                        xbmcDialog = None
-                        del xbmcDialog
-                        if answer == 1:
-                            self.update_in_progress = True
-                            self.do_autoupdate()
                     if self.struct['update']['settings']['AutoUpdate']['value'] == 'auto' and force == False:
                         self.update_in_progress = True
                         self.do_autoupdate(None, True)
@@ -567,12 +790,12 @@ class system:
             if hasattr(self, 'update_file'):
                 if not os.path.exists(self.LOCAL_UPDATE_DIR):
                     os.makedirs(self.LOCAL_UPDATE_DIR)
-                downloaded = self.oe.download_file(self.update_file, self.oe.TEMP + self.update_file.split('/')[-1], silent)
+                downloaded = self.oe.download_file(self.update_file, self.oe.TEMP + 'update_file', silent)
                 if not downloaded is None:
                     self.update_file = self.update_file.split('/')[-1]
                     if self.struct['update']['settings']['UpdateNotify']['value'] == '1':
                         self.oe.notify(self.oe._(32363), self.oe._(32366))
-                    shutil.move(self.oe.TEMP + self.update_file, self.LOCAL_UPDATE_DIR + self.update_file)
+                    shutil.move(self.oe.TEMP + 'update_file', self.LOCAL_UPDATE_DIR + self.update_file)
                     subprocess.call('sync', shell=True, stdin=None, stdout=None, stderr=None)
                     if silent == False:
                         self.oe.winOeMain.close()
@@ -668,7 +891,7 @@ class system:
             if bckDir and os.path.exists(bckDir): 
                 # free space check
                 try:
-                    folder_stat = os.statvfs("/storage")
+                    folder_stat = os.statvfs(bckDir)
                     free_space = folder_stat.f_bsize * folder_stat.f_bavail
                     if self.total_backup_size > free_space:
                         txt = self.oe.split_dialog_text(self.oe._(32379).encode('utf-8'))
@@ -744,6 +967,33 @@ class system:
             self.oe.dbg_log('system::do_restore', 'exit_function', 0)
         except Exception, e:
             self.oe.dbg_log('system::do_restore', 'ERROR: (' + repr(e) + ')')
+    def cat_file(self, tmp, filen):
+        self.oe.execute('echo "======== ' + filen + ' ==============" >> ' + tmp)
+        self.oe.execute('cat ' + filen + ' >> ' + tmp)
+
+    def do_pastebin(self, listItem=None):
+        try:
+            paste_dlg = xbmcgui.DialogProgress()
+            paste_dlg.create('Pasting log files', 'Pasting...', ' ', ' ')
+            self.oe.execute('echo "Paste output" > /storage/.kodi/temp/paste.tmp')
+            self.cat_file('/storage/.kodi/temp/paste.tmp', '/flash/config.txt')
+            self.cat_file('/storage/.kodi/temp/paste.tmp', '/flash/cmdline.txt')
+            self.cat_file('/storage/.kodi/temp/paste.tmp', '/storage/.kodi/temp/kodi.log')
+            self.oe.execute('dmesg > /storage/.kodi/temp/dmesg.txt')
+            self.cat_file('/storage/.kodi/temp/paste.tmp', '/storage/.kodi/temp/dmesg.txt')
+
+            result = self.oe.execute('paste /storage/.kodi/temp/paste.tmp', 1)
+            if not paste_dlg.iscanceled():
+                paste_dlg.close()
+                link = result.find('http')
+                done_dlg = xbmcgui.Dialog()
+                if link > 0:
+                    done_dlg.ok('Debug pasted', 'Log files pasted to ' + result[link:])
+                    self.oe.dbg_log('system::do_pastebin', result[link:])
+                else:
+                    done_dlg.ok('Failed paste', 'Failed to paste log files, try again')
+        except Exception, e:
+            self.oe.dbg_log('system::do_pastebin', 'ERROR: (' + repr(e) + ')')
 
     def tar_add_folder(self, tar, folder):
         try:

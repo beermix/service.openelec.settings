@@ -28,6 +28,7 @@ ADDON_NAME=service.openelec.settings
 ADDON_VERSION=0.8.1
 DISTRONAME:=OpenELEC
 
+SHELL=/bin/bash
 BUILDDIR=build
 DATADIR=/usr/share/kodi
 ADDONDIR=$(DATADIR)/addons
